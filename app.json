@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Fin-Note",
+    "slug": "fin-note-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "finnote",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.finnote.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Fin-Note needs access to your microphone to record voice expenses.",
+        "NSFaceIDUsageDescription": "Fin-Note uses Face ID to secure your financial data."
+      }
+    },
+    "android": {
+      "package": "com.finnote.app",
+      "permissions": [
+        "RECORD_AUDIO",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ]
+    },
+    "web": {},
+    "plugins": [
+      "expo-router",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Fin-Note to use Face ID to secure your data."
+        }
+      ],
+      "expo-asset",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
