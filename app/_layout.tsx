@@ -22,17 +22,17 @@ function RootLayoutNav() {
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    // Load user on app start
-    console.log('[App] Starting app, loading user...');
+    // Load user on app start - auto-login if tokens exist
+    console.log('[App] 🚀 Starting Fin-Note app...');
     loadUser()
       .then(() => {
-        console.log('[App] User loaded successfully');
+        console.log('[App] ✅ Auto-login successful');
       })
       .catch((error) => {
-        console.error('[App] Failed to load user:', error);
+        console.log('[App] ℹ️  No saved session, redirecting to login');
       })
       .finally(() => {
-        console.log('[App] Initialization complete');
+        console.log('[App] ✅ Initialization complete');
         setIsInitialized(true);
       });
   }, [loadUser]);

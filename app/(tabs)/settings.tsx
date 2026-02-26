@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -7,11 +8,27 @@ import { Loading } from '@/components/common/Loading';
 import { useAuthStore } from '@/store';
 import { userSettingsService } from '@/services/user-settings.service';
 import { THEME_COLORS, ThemeColor } from '@/constants/themes';
+import { debugUtils } from '@/utils/debug';
+import { credentialsService } from '@/services/credentials.service';
+import Constants from 'expo-constants';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { user, logout } = useAuthStore();
+  const { user, logout, isAuthenticated, isLoading: authLoading } = useAuthStore();
+  const [tokenStatus, setTokenStatus] = useState<{
+    hasAccessToken: boolean;
+    hasRefreshToken: boolean;
+    hasValidSession: boolean;
+  } | null>(null);
+  const [hasCredentials, setHasCredentials] = useState(false);
+
+  const isDevelopment = __DEV__;
+
+  useEffect(() => {
+    // Check if user has saved credentials
+    credentialsService.hasCredentials().then(setHasCredentials);
+  }, []);
 
   // Fetch user settings
   const { data: settings, isLoading } = useQuery({
@@ -43,6 +60,68 @@ export default function SettingsScreen() {
           onPress: async () => {
             await logout();
             router.replace('/(auth)/login');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleCheckTokens = async () => {
+    const status = await debugUtils.checkTokenStatus();
+    setTokenStatus(status);
+    setHasCredentials(status.hasCredentials);
+    debugUtils.logAuthState({ isAuthenticated, user, isLoading: authLoading });
+
+    Alert.alert(
+      'Debug Status',
+      `🔑 TOKENS:\n` +
+        `Access Token: ${status.hasAccessToken ? '✅ EXISTS' : '❌ NOT FOUND'}\n` +
+        `Refresh Token: ${status.hasRefreshToken ? '✅ EXISTS' : '❌ NOT FOUND'}\n` +
+        `Valid Session: ${status.hasValidSession ? '✅ YES' : '❌ NO'}\n\n` +
+        `👤 CREDENTIALS:\n` +
+        `Saved Email: ${status.savedEmail || '❌ NOT FOUND'}\n` +
+        `Saved Password: ${status.hasCredentials ? '✅ EXISTS' : '❌ NOT FOUND'}\n` +
+        `Remember Me: ${status.hasCredentials ? '✅ ENABLED' : '❌ DISABLED'}\n\n` +
+        `🔐 AUTH STATE:\n` +
+        `- Authenticated: ${isAuthenticated ? 'YES' : 'NO'}\n` +
+        `- User: ${user?.email || 'N/A'}\n\n` +
+        `Check console for detailed logs.`,
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleClearTokens = () => {
+    Alert.alert(
+      'Clear Tokens',
+      'This will clear all saved tokens. You will need to login again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: async () => {
+            await debugUtils.clearAllTokens();
+            await logout();
+            router.replace('/(auth)/login');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleClearCredentials = () => {
+    Alert.alert(
+      'Clear Saved Credentials',
+      'This will remove your saved email and password. You will need to enter them again next time.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: async () => {
+            await credentialsService.clearCredentials();
+            setHasCredentials(false);
+            Alert.alert('Success', 'Saved credentials have been cleared.');
           },
         },
       ]
@@ -112,6 +191,43 @@ export default function SettingsScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+          </Card>
+        </View>
+
+        {/* Security */}
+        <View className="px-6 mb-6">
+          <Text className="text-lg font-semibold text-gray-900 mb-3">
+            Security
+          </Text>
+          <Card className="gap-3">
+            <View className="flex-row items-center justify-between py-2">
+              <View className="flex-1">
+                <Text className="text-base font-medium text-gray-900">
+                  Saved Credentials
+                </Text>
+                <Text className="text-sm text-gray-600">
+                  {hasCredentials
+                    ? '✅ Email & password saved'
+                    : '❌ No saved credentials'}
+                </Text>
+              </View>
+              {hasCredentials && (
+                <TouchableOpacity
+                  onPress={handleClearCredentials}
+                  className="px-3 py-1 bg-red-50 rounded-lg"
+                >
+                  <Text className="text-red-600 text-sm font-medium">Clear</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {hasCredentials && (
+              <View className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <Text className="text-yellow-800 text-xs">
+                  ⚠️ Your credentials are encrypted and stored securely. Clear them if you're on a shared device.
+                </Text>
+              </View>
+            )}
           </Card>
         </View>
 
@@ -203,6 +319,58 @@ export default function SettingsScreen() {
             </View>
           </Card>
         </View>
+
+        {/* Debug Tools (Development Only) */}
+        {isDevelopment && (
+          <View className="px-6 mb-6">
+            <Text className="text-lg font-semibold text-gray-900 mb-3">
+              🔧 Debug Tools
+            </Text>
+            <Card className="gap-3">
+              <TouchableOpacity
+                onPress={handleCheckTokens}
+                className="flex-row items-center py-2"
+              >
+                <Text className="text-2xl mr-3">🔍</Text>
+                <View className="flex-1">
+                  <Text className="text-base text-gray-900 font-medium">
+                    Check Token Status
+                  </Text>
+                  {tokenStatus && (
+                    <Text className="text-sm text-gray-600 mt-1">
+                      {tokenStatus.hasValidSession
+                        ? '✅ Valid session exists'
+                        : '❌ No valid session'}
+                    </Text>
+                  )}
+                </View>
+                <Text className="text-gray-400">→</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleClearTokens}
+                className="flex-row items-center py-2"
+              >
+                <Text className="text-2xl mr-3">🗑️</Text>
+                <View className="flex-1">
+                  <Text className="text-base text-orange-600 font-medium">
+                    Clear All Tokens
+                  </Text>
+                  <Text className="text-sm text-gray-600">
+                    Force logout and clear cache
+                  </Text>
+                </View>
+                <Text className="text-gray-400">→</Text>
+              </TouchableOpacity>
+            </Card>
+
+            <View className="mt-2 px-3">
+              <Text className="text-xs text-gray-500">
+                💡 Tip: Check console logs for detailed debug info
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Actions */}
         <View className="px-6 mb-6">

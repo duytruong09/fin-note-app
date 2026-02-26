@@ -1,4 +1,5 @@
 import { apiClient, tokenManager } from './api-client';
+import { credentialsService } from './credentials.service';
 import { ApiResponse, User } from '@/types';
 
 interface LoginCredentials {
@@ -48,7 +49,18 @@ export const authService = {
   },
 
   async logout(): Promise<void> {
+    console.log('[Auth] Logging out...');
     await tokenManager.clearTokens();
+
+    // Check if user wants to keep credentials for next login
+    const rememberMe = await credentialsService.isRememberMeEnabled();
+    if (!rememberMe) {
+      // Clear credentials only if remember me is disabled
+      await credentialsService.clearCredentials();
+      console.log('[Auth] Credentials cleared on logout');
+    } else {
+      console.log('[Auth] Keeping saved credentials (Remember Me enabled)');
+    }
   },
 
   async getCurrentUser(): Promise<User> {

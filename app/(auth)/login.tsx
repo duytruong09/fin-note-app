@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
@@ -6,16 +6,49 @@ import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
 import { useAuthStore } from '@/store';
 import { useBiometric } from '@/hooks/useBiometric';
+import { tokenManager } from '@/services/api-client';
+import { credentialsService } from '@/services/credentials.service';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login, isLoading, error, clearError } = useAuthStore();
+  const { login, isLoading, error, clearError, loadUser } = useAuthStore();
   const { isAvailable: biometricAvailable, biometricType, authenticate } = useBiometric();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [showAutoLoginInfo, setShowAutoLoginInfo] = useState(false);
+
+  useEffect(() => {
+    // Load saved credentials on mount
+    const loadSavedData = async () => {
+      // Check for tokens
+      const hasTokens = await tokenManager.hasTokens();
+      if (hasTokens) {
+        setShowAutoLoginInfo(true);
+      }
+
+      // Load saved credentials
+      const savedCredentials = await credentialsService.getCredentials();
+      if (savedCredentials) {
+        setEmail(savedCredentials.email);
+        setPassword(savedCredentials.password);
+        setRememberMe(true);
+        console.log('[Login] Auto-filled saved credentials');
+      } else {
+        // If no full credentials, try to load just the email
+        const savedEmail = await credentialsService.getSavedEmail();
+        if (savedEmail) {
+          setEmail(savedEmail);
+          console.log('[Login] Auto-filled saved email');
+        }
+      }
+    };
+
+    loadSavedData();
+  }, []);
 
   const validateForm = () => {
     if (!email.trim()) {
@@ -48,7 +81,19 @@ export default function LoginScreen() {
     clearError();
 
     try {
-      await login(email.trim().toLowerCase(), password);
+      const trimmedEmail = email.trim().toLowerCase();
+      await login(trimmedEmail, password);
+
+      // Save credentials if "Remember Me" is checked
+      if (rememberMe) {
+        await credentialsService.saveCredentials(trimmedEmail, password);
+        console.log('[Login] Credentials saved (Remember Me enabled)');
+      } else {
+        // Clear credentials if "Remember Me" is unchecked
+        await credentialsService.clearCredentials();
+        console.log('[Login] Credentials cleared (Remember Me disabled)');
+      }
+
       router.replace('/(tabs)');
     } catch (err) {
       // Error is handled by the store
@@ -57,10 +102,32 @@ export default function LoginScreen() {
 
   const handleBiometricLogin = async () => {
     const success = await authenticate('Login to Fin-Note');
-    if (success) {
-      // In a real app, you'd retrieve saved credentials and login
-      // For now, just navigate to the app
-      router.replace('/(tabs)');
+    if (!success) return;
+
+    try {
+      // First, try auto-login with existing tokens
+      const hasTokens = await tokenManager.hasTokens();
+      if (hasTokens) {
+        console.log('[Login] Biometric: Attempting auto-login with tokens');
+        await loadUser();
+        router.replace('/(tabs)');
+        return;
+      }
+
+      // If no tokens, try saved credentials
+      const savedCredentials = await credentialsService.getCredentials();
+      if (savedCredentials) {
+        console.log('[Login] Biometric: Using saved credentials to login');
+        await login(savedCredentials.email, savedCredentials.password);
+        router.replace('/(tabs)');
+      } else {
+        // No saved credentials or tokens
+        setValidationError('No saved credentials found. Please login with email and password.');
+      }
+    } catch (err) {
+      // If login fails, stay on login screen
+      clearError();
+      setValidationError('Biometric login failed. Please try again or use email/password.');
     }
   };
 
@@ -84,6 +151,31 @@ export default function LoginScreen() {
               Sign in to continue tracking your expenses
             </Text>
           </View>
+
+          {/* Auto-Login Info Banner */}
+          {showAutoLoginInfo && (
+            <View className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <View className="flex-row items-start">
+                <Text className="text-2xl mr-2">ℹ️</Text>
+                <View className="flex-1">
+                  <Text className="text-blue-900 font-semibold mb-1">
+                    Session Found
+                  </Text>
+                  <Text className="text-blue-700 text-sm">
+                    You have a saved session. The app will automatically log you in next time.
+                  </Text>
+                  {biometricAvailable && (
+                    <Text className="text-blue-600 text-xs mt-1">
+                      💡 Tip: Use {biometricType} for quick login
+                    </Text>
+                  )}
+                </View>
+                <TouchableOpacity onPress={() => setShowAutoLoginInfo(false)}>
+                  <Text className="text-blue-400 text-lg">✕</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           {/* Form */}
           <View className="gap-4 mb-6">
@@ -128,12 +220,30 @@ export default function LoginScreen() {
             )}
           </View>
 
-          {/* Forgot Password */}
-          <TouchableOpacity className="self-end mb-6">
-            <Text className="text-primary-blue font-medium">
-              Forgot Password?
-            </Text>
-          </TouchableOpacity>
+          {/* Remember Me & Forgot Password */}
+          <View className="flex-row justify-between items-center mb-6">
+            <TouchableOpacity
+              onPress={() => setRememberMe(!rememberMe)}
+              className="flex-row items-center"
+            >
+              <View
+                className={`w-5 h-5 border-2 rounded mr-2 items-center justify-center ${
+                  rememberMe
+                    ? 'bg-primary-blue border-primary-blue'
+                    : 'border-gray-300'
+                }`}
+              >
+                {rememberMe && <Text className="text-white text-xs">✓</Text>}
+              </View>
+              <Text className="text-gray-700">Remember me</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity>
+              <Text className="text-primary-blue font-medium">
+                Forgot Password?
+              </Text>
+            </TouchableOpacity>
+          </View>
 
           {/* Login Button */}
           <Button

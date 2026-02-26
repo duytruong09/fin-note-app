@@ -17,7 +17,9 @@ const REFRESH_TOKEN_KEY = 'refresh_token';
 export const tokenManager = {
   async getAccessToken(): Promise<string | null> {
     try {
-      return await SecureStore.getItemAsync(TOKEN_KEY);
+      const token = await SecureStore.getItemAsync(TOKEN_KEY);
+      console.log('[TokenManager] Get access token:', token ? 'EXISTS' : 'NOT_FOUND');
+      return token;
     } catch (error) {
       console.error('[TokenManager] Failed to get access token:', error);
       return null;
@@ -27,6 +29,7 @@ export const tokenManager = {
   async setAccessToken(token: string): Promise<void> {
     try {
       await SecureStore.setItemAsync(TOKEN_KEY, token);
+      console.log('[TokenManager] Access token saved successfully');
     } catch (error) {
       console.error('[TokenManager] Failed to set access token:', error);
       throw error;
@@ -35,7 +38,9 @@ export const tokenManager = {
 
   async getRefreshToken(): Promise<string | null> {
     try {
-      return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+      const token = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+      console.log('[TokenManager] Get refresh token:', token ? 'EXISTS' : 'NOT_FOUND');
+      return token;
     } catch (error) {
       console.error('[TokenManager] Failed to get refresh token:', error);
       return null;
@@ -45,6 +50,7 @@ export const tokenManager = {
   async setRefreshToken(token: string): Promise<void> {
     try {
       await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token);
+      console.log('[TokenManager] Refresh token saved successfully');
     } catch (error) {
       console.error('[TokenManager] Failed to set refresh token:', error);
       throw error;
@@ -53,11 +59,26 @@ export const tokenManager = {
 
   async clearTokens(): Promise<void> {
     try {
+      console.log('[TokenManager] Clearing all tokens...');
       await SecureStore.deleteItemAsync(TOKEN_KEY);
       await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+      console.log('[TokenManager] Tokens cleared successfully');
     } catch (error) {
       console.error('[TokenManager] Failed to clear tokens:', error);
       // Don't throw - clearing tokens should always succeed
+    }
+  },
+
+  async hasTokens(): Promise<boolean> {
+    try {
+      const accessToken = await SecureStore.getItemAsync(TOKEN_KEY);
+      const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+      const hasTokens = !!(accessToken && refreshToken);
+      console.log('[TokenManager] Has valid tokens:', hasTokens);
+      return hasTokens;
+    } catch (error) {
+      console.error('[TokenManager] Failed to check tokens:', error);
+      return false;
     }
   },
 };

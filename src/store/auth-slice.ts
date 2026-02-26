@@ -60,10 +60,17 @@ export const createAuthSlice: StateCreator<AuthSlice> = (set, get) => ({
     try {
       console.log('[Auth] Loading current user...');
       const user = await authService.getCurrentUser();
-      console.log('[Auth] User loaded:', user?.email);
+      console.log('[Auth] ✅ User loaded successfully:', user?.email);
       set({ user, isAuthenticated: true, isLoading: false });
     } catch (error: any) {
-      console.log('[Auth] Failed to load user (expected if not logged in):', error?.message);
+      const status = error?.response?.status;
+      if (status === 401) {
+        console.log('[Auth] ⚠️  No valid session - user needs to login');
+      } else if (error?.message?.includes('Network')) {
+        console.log('[Auth] ⚠️  Network error - cannot reach backend');
+      } else {
+        console.log('[Auth] ⚠️  Failed to load user:', error?.message);
+      }
       set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },
