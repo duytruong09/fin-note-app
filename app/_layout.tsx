@@ -23,7 +23,18 @@ function RootLayoutNav() {
 
   useEffect(() => {
     // Load user on app start
-    loadUser().finally(() => setIsInitialized(true));
+    console.log('[App] Starting app, loading user...');
+    loadUser()
+      .then(() => {
+        console.log('[App] User loaded successfully');
+      })
+      .catch((error) => {
+        console.error('[App] Failed to load user:', error);
+      })
+      .finally(() => {
+        console.log('[App] Initialization complete');
+        setIsInitialized(true);
+      });
   }, [loadUser]);
 
   useEffect(() => {

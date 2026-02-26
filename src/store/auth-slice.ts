@@ -58,9 +58,12 @@ export const createAuthSlice: StateCreator<AuthSlice> = (set, get) => ({
   loadUser: async () => {
     set({ isLoading: true });
     try {
+      console.log('[Auth] Loading current user...');
       const user = await authService.getCurrentUser();
+      console.log('[Auth] User loaded:', user?.email);
       set({ user, isAuthenticated: true, isLoading: false });
-    } catch (error) {
+    } catch (error: any) {
+      console.log('[Auth] Failed to load user (expected if not logged in):', error?.message);
       set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },
